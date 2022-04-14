@@ -36,8 +36,53 @@ enum PinOut
   m4
 };
 
+enum Screen
+{
+  end = 0,
+  changePassword,
+  setAlarm,
+  changeAlarm,
+  NUMBER_OF_SCREENS
+};
+
+void close()
+{
+  closeSafe();
+  lcd.clear();
+}
+
+void passwdChange()
+{
+
+}
+
+void alarm()
+{
+
+}
+
+void alarmChange()
+{
+
+}
+
+typedef void (*app)();
+app appArray[NUMBER_OF_SCREENS] = 
+{
+  close,
+  passwdChange,
+  alarm,
+  alarmChange
+};
+
 void setup() 
 {
+  Stepper *motor = new Stepper(32 * 64, m1, m3, m2, m4);
+  motor->setSpeed(8);
+  motor->step(-1);
+  motor->step(1);
+  delete motor;
+
   Serial.begin(9600);
   lcd.init();
   lcd.backlight();
@@ -63,55 +108,59 @@ void setup()
 void loop() 
 {
   password();
+  openSafe();
+  menu();
 }
 
-void password()
+void inputPassword(uint8_t length, uint8_t printStartPosition, char *password)
 {
-  uint8_t passwdLength = getPasswdLength();
-  uint8_t screenPosition = (16 - passwdLength) / 2;
-  char *password = new char[passwdLength];
+  lcd.setCursor(printStartPosition, 1);
 
-  lcd.setCursor(4, 0);
-  lcd.print("password");
-
-  lcd.setCursor(screenPosition, 1);
+  for (uint8_t i = 0; i < length; i++) lcd.print("_");
   
-  for (uint8_t i = 0; i < passwdLength; i++) lcd.print("_");
-  
-  lcd.setCursor(screenPosition, 1);
+  lcd.setCursor(printStartPosition, 1);
   lcd.blink();
-  
-  for (uint8_t i = 0; i < passwdLength; i++)
+
+  for (uint8_t i = 0; i < length;)
   {
+    char key = getKey();
     
-    password[i] = getKey();
-    
-    lcd.print(password[i]);   
+    switch (key)
+    {
+      case '#':
+        if (i == 0) break;
+
+        i--;
+        lcd.setCursor(printStartPosition + i, 1);
+        lcd.print("_");
+        lcd.setCursor(printStartPosition + i, 1);
+
+        break;
+
+      case '*':
+        i = 0;
+
+        lcd.setCursor(printStartPosition, 1);
+        for (uint8_t i = 0; i < length; i++) lcd.print("_");
+        lcd.setCursor(printStartPosition, 1);
+
+        break;
+      
+      default:
+        password[i] = key;
+        lcd.print(password[i]);
+        i++;
+    }
   }
 
   lcd.noBlink();
-
-  if (passwdCheck(password, readPassword()))
-  {
-    delete[] password;
-    lcd.clear();
-    openSafe();
-    menu();
-    
-  }else{
-    
-    delete[] password;
-    lcd.clear();
-  }
-  
 }
 
-char* readPassword()
+char* readPassword(uint8_t length)
 {
-  uint8_t passwdLength = getPasswdLength();
-  char *password = new char [passwdLength];
+  char *password = new char [length];
 
-  for (uint8_t i = 1; i < passwdLength + 1; i++)
+  for (uint8_t i = 1; i < length + 1; i++)
   {
     password[i - 1] = EEPROM.read(i);
   }
@@ -131,38 +180,92 @@ bool passwdCheck(char *password, char *savedPassword)
   return true;
 }
 
+void password()
+{
+  uint8_t passwdLength = getPasswdLength();
+  uint8_t screenPosition = (16 - passwdLength) >> 1;
+  char *password = new char[passwdLength];
+  char *savedPassword = readPassword(passwdLength);
+
+  lcd.setCursor(4, 0);
+  lcd.print("password");
+
+  do{
+
+    inputPassword(passwdLength, screenPosition, password);
+
+  }while (!passwdCheck(password, savedPassword));
+
+  delete[] password;
+  delete[] savedPassword;
+  lcd.clear();
+}
+
 void openSafe()
 {
-  Stepper motor(32 * 64, m1, m3, m2, m4);
-  motor.setSpeed(8);
-  motor.step(-512);
+  Stepper *motor = new Stepper(32 * 64, m1, m3, m2, m4);
+  motor->setSpeed(8);
+  motor->step(-512);
+  delete motor;
 }
 
 void closeSafe()
 {
-  Stepper motor(32 * 64, m1, m3, m2, m4);
-  motor.setSpeed(8);
-  motor.step(512);
+  Stepper *motor = new Stepper(32 * 64, m1, m3, m2, m4);
+  motor->setSpeed(8);
+  motor->step(512);
+  delete motor;
 }
 
 void menu()
 {
+  uint8_t screenNumber = 0;
+
+  lcd.setCursor(0, 1);
+  lcd.print("<4     |5     6>");
+
   for(;;)
   {
+    lcd.setCursor(0, 0);
+    switch (screenNumber)
+    {
+      case Screen::end:
+        lcd.print("      exit      ");
+        break;
+      case Screen::changePassword:
+        lcd.print("change  password");
+        break;
+      case Screen::setAlarm:
+        lcd.print("    set alarm   ");
+        break;
+      case Screen::changeAlarm:
+        lcd.print("  change alarm  ");
+        break;
+    }
+
     char key = getKey();
 
-    if (key == '*')
+    switch (key)
     {
-      closeSafe();
-      return;
+      case '4':
+        if (screenNumber == 0) screenNumber = Screen::NUMBER_OF_SCREENS - 1; else screenNumber--;
+        break;
+      
+      case '5':
+        appArray[screenNumber]();
+        if (screenNumber == 0) return;
+        break;
+
+      case '6':
+        if (screenNumber == Screen::NUMBER_OF_SCREENS - 1) screenNumber = 0; else screenNumber++;
+        break;
     }
   }
 }
 
 uint8_t getPasswdLength()
 {
-  return 4;
-  //return EEPROM.read(0x00);
+  return EEPROM.read(0x00);
 }
 
 char getKey()
