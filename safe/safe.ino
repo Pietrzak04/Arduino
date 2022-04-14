@@ -45,36 +45,6 @@ enum Screen
   NUMBER_OF_SCREENS
 };
 
-void close()
-{
-  closeSafe();
-  lcd.clear();
-}
-
-void passwdChange()
-{
-
-}
-
-void alarm()
-{
-
-}
-
-void alarmChange()
-{
-
-}
-
-typedef void (*app)();
-app appArray[NUMBER_OF_SCREENS] = 
-{
-  close,
-  passwdChange,
-  alarm,
-  alarmChange
-};
-
 void setup() 
 {
   Stepper *motor = new Stepper(32 * 64, m1, m3, m2, m4);
@@ -217,6 +187,46 @@ void closeSafe()
   delete motor;
 }
 
+void close()
+{
+  closeSafe();
+  lcd.clear();
+}
+
+void passwdChange()
+{
+  
+    lcd.clear();
+    lcd.setCursor(0, 0);
+    lcd.print("new length (4-8)");
+    lcd.setCursor(0, 1);
+    lcd.print("* continue");
+
+    char length = getKey();
+
+    if (length < '4') length = '4';
+    if (length > '8') length = '8';
+
+    lcd.setCursor(13, 1);
+    lcd.print(length);
+
+
+  for (;;)
+  {
+
+  }
+}
+
+void alarm()
+{
+
+}
+
+void alarmChange()
+{
+
+}
+
 void menu()
 {
   uint8_t screenNumber = 0;
@@ -252,8 +262,23 @@ void menu()
         break;
       
       case '5':
-        appArray[screenNumber]();
-        if (screenNumber == 0) return;
+
+        switch (screenNumber)
+        {
+          case Screen::end:
+            close();
+            break;
+          case Screen::changePassword:
+            passwdChange();
+            break;
+          case Screen::changeAlarm:
+            alarmChange();
+            break;
+          case Screen::setAlarm:
+            alarm();
+            break;
+        }
+
         break;
 
       case '6':
